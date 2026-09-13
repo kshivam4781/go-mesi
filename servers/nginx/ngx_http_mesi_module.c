@@ -982,6 +982,20 @@ static ngx_str_t parse(ngx_str_t input, ngx_http_request_t *r) {
     }
   }
 
+  if (message == NULL) {
+    // Defensive fail-closed guard: every EsiParse*/ParseWithConfig* call
+    // above is expected to return non-NULL, but libgomesi's C ABI returns
+    // NULL for an out-of-range maxDepth (#414) or any other internal
+    // rejection. ngx_strlen(NULL) below would dereference a NULL pointer
+    // and crash the worker (SIGSEGV) instead of failing the request.
+    // Fail closed the same way as the mesi_allowed_hosts stale-lib path
+    // above: log at ERR and return an empty, non-NULL terminal buffer.
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                  "mesi: libgomesi Parse* returned NULL — failing request "
+                  "(fail closed)");
+    return (ngx_str_t){0, (u_char *)""};
+  }
+
   output.len = ngx_strlen(message);
   // +1 for the NUL terminator written below — the historical allocation
   // of exactly output.len bytes made output.data[output.len] = '\0' write
