@@ -1391,6 +1391,16 @@ static int mesi_response_filter(ap_filter_t *f, apr_bucket_brigade *bb) {
             EsiFreeString(esi);
         }
     } else {
+        // esi == NULL here means one of the ParseWithConfigCtx/Ex/Config/Parse
+        // calls above ran and libgomesi rejected the input (e.g. an
+        // out-of-range maxDepth, #414) rather than the "library not loaded"
+        // case already handled earlier in this function. Silently passing
+        // the original, unparsed HTML through (as below) leaves no trace of
+        // the failure — log it at ERR so operators can see that ESI
+        // processing was skipped, same fail-closed spirit as the
+        // ParseWithConfig-unavailable branch above.
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+            "mesi: libgomesi Parse* returned NULL, serving unparsed content");
         output = html;
     }
 
